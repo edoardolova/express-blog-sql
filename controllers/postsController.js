@@ -42,24 +42,34 @@ function store(req, res){
 };
 
 function update(req, res){
-    const id = req.params.id;
-    const post = postsData.find(post => post.id === Number(id));
-    if (!post) {
-        res.status(404);
-        return res.json({
-            err: "not found",
-            mess: "post not found"
-        });
-    };
+    const id = parseInt(req.params.id);
+    const {title, content, image} = req.body;
 
-    post.title = req.body.title;
-    post.content = req.body.content;
-    post.image = req.body.image;
-    post.tags = req.body.tags;
-
-    console.log(postsData);
-    res.json(post);
     
+    // Prepare the sql to update the post
+    const sql = 'UPDATE posts SET title = ?, content = ?, image = ? WHERE id = ?';
+     // Execute the update query
+    connection.query(sql, [title, content, image, id], (err, results) =>{
+        if (err) {
+            return res.status(500).json({error: true, mess: err.message});
+        };
+        if (results.affectedRows === 0) {
+            return res.status(404).json({error: true, mess: 'post not found'})
+        };
+
+        // second query to read the updated post from the database, so we can return the updated data to the client
+        const sqlPost = 'SELECT * FROM posts WHERE id = ?';   
+        connection.query(sqlPost, [id], (err, results) =>{
+            if (err) {
+                return res.status(500).json({error: true, mess: err.message});
+            };
+            if (results.length === 0) {
+                return res.status(404).json({error: true, mess: 'post not found'});
+            };
+    
+            return res.json(results);
+        });
+    });  
 };
 
 function modify(req, res){
