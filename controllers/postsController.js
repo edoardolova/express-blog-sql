@@ -93,19 +93,24 @@ function modify(req, res){
 };
 
 function destroy(req, res){
-    const id = Number(req.params.id);
-    const post = posts.find(post => post.id === id);
-    if (!post) {
-        res.status(404);
-        return res.json({
-            status: 404,
-            err: "not found",
-            mess: "post not found"
-        })
-    }
-    posts.splice(posts.indexOf(post),1);
-    console.log(posts);
+    const id = parseInt(req.params.id);
+    const sql = 'DELETE FROM posts WHERE id = ?';
+
+    connection.query(sql, [id], (err, results)=>{
+        if (err){
+            return res.status(500).json({ error: true, message: err.message });
+        };
+
+        if (results.affectedRows === 0) {
+            return res.status(404).json({
+            error: true,
+            message: 'Not Found'
+            });
+        };
+    });
+    
     res.sendStatus(204);
+
 };
 
 module.exports = {index, show, store, update, modify, destroy};
