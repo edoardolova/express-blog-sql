@@ -1,13 +1,16 @@
 // const postsData = require("../data/postsData.js");
-const mydb = require("../db/db.js")
+const connection = require("../db/db.js")
 
 function index(req, res){
-    let myRes = postsData;
-    const {tag} = req.query;
-    if (tag) {
-        myRes = postsData.filter(post => post.tags.some(t => t.toLowerCase() === tag.toLowerCase()));
-    }
-    res.json(myRes);
+    const sql = 'SELECT * FROM posts';
+
+    connection.query(sql, (err, results)=>{
+        if (err) {
+            return res.status(500).json({error: true, mess: err.message})
+        };
+        console.log(results);
+        res.json(results)
+    })
 };
 
 function show(req, res){
