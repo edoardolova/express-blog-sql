@@ -1,22 +1,38 @@
 // const postsData = require("../data/postsData.js");
 const connection = require("../db/db.js")
 
-function index(req, res){
-    const sql = 'SELECT * FROM posts';
+function index(req, res) {
+    //add tags 
+    const sql = `
+        SELECT posts.*, GROUP_CONCAT(tags.label SEPARATOR ', ') AS tags
+        FROM posts
+        JOIN post_tag ON post_tag.post_id = posts.id
+        JOIN tags ON tags.id = post_tag.tag_id
+        GROUP BY posts.id;
+        
+    `;
 
-    connection.query(sql, (err, results)=>{
+    connection.query(sql, (err, results) => {
         if (err) {
-            return res.status(500).json({error: true, mess: err.message});
-        };
-        console.log(results);
+            return res.status(500).json({ error: true, mess: err.message });
+        }
         res.json(results);
     });
-};
+}
+
 
 function show(req, res){
     const id = parseInt(req.params.id);
-
-    const sql = 'SELECT * FROM posts WHERE id = ?';
+    //add tags 
+    const sql = `
+        SELECT posts.*, GROUP_CONCAT(tags.label SEPARATOR ', ') AS tags
+        FROM posts
+        JOIN post_tag ON post_tag.post_id = posts.id
+        JOIN tags ON tags.id = post_tag.tag_id
+        WHERE posts.id = ?
+        GROUP BY posts.id;
+    `;
+    
     connection.query(sql, [id], (err, results)=>{
         if (err) {
             return res.status(500).json({error: true, mess: err.message});
@@ -28,18 +44,97 @@ function show(req, res){
     });
 };
 
-function store(req, res){
-    const {title, content, image} = req.body;
-    const sql = 'INSERT INTO posts (title, content, image) VALUES (?, ?, ?)';
+// function store(req, res){
+//     const {title, content, image} = req.body;
+//     const sql = 'INSERT INTO posts (title, content, image) VALUES (?, ?, ?)';
 
-    connection.query(sql, [title, content, image], (err, results) =>{
+//     connection.query(sql, [title, content, image], (err, results) =>{
+//         if (err) {
+//             return res.status(500).json({error: true, mess: err.message});
+//         };
+//         console.log(results);
+//         res.status(201).json({id: results.insertId});
+//     })
+// };
+
+
+
+// Funzione to capitalize first letter
+function capitalize(string) {
+    string = string.trim();
+    if (string.length === 0){
+        return "";
+    } 
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+}
+// store post + tag id + post_tag
+function store(req, res) {
+    const { title, content, image, tags } = req.body;
+    //sql query create post
+    const sqlPost = 'INSERT INTO posts (title, content, image) VALUES (?, ?, ?)';
+
+    connection.query(sqlPost, [title, content, image], (err, postResult) => {
         if (err) {
-            return res.status(500).json({error: true, mess: err.message});
-        };
-        console.log(results);
-        res.status(201).json({id: results.insertId});
-    })
-};
+            return res.status(500).json({ error: true, mess: err.message });
+        }
+        //post id for the post_tag
+        const postId = postResult.insertId;
+
+        if (!tags || tags.length === 0) {
+            // No tags to process
+            return res.status(201).json({ id: postId });
+        }
+
+        // Process each tag
+        const tagPromises = tags.map((label) => {
+            const normalizedLabel = capitalize(label);
+
+            return new Promise((resolve, reject) => {
+                // Check if tag already exists
+                const sqlCheck = 'SELECT id FROM tags WHERE LOWER(label) = ?';
+                connection.query(sqlCheck, [normalizedLabel.toLowerCase()], (err, tagResults) => {
+                    if (err){
+                        return reject(err);
+                    } 
+
+                    // Tag exists
+                    if (tagResults.length > 0) {
+                        return resolve(tagResults[0].id);
+                    } 
+                    // Insert new tag with capitalized label
+                    else {
+                        const sqlInsertTag = 'INSERT INTO tags (label) VALUES (?)';
+                        connection.query(sqlInsertTag, [normalizedLabel], (err, newTagResult) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            return resolve(newTagResult.insertId);
+                        });
+                    }
+                });
+            });
+        });
+
+        Promise.all(tagPromises)
+            .then(tagIds => {
+
+                const pivotValues = tagIds.map(tagId => [postId, tagId]);
+                // Insert into post_tag pivot table   (VALUES ? insert more row in one go)
+                const sqlPivot = 'INSERT INTO post_tag (post_id, tag_id) VALUES ?';
+
+                connection.query(sqlPivot, [pivotValues], (err) => {
+                    if (err) {
+                        return res.status(500).json({ error: true, mess: err.message });
+                    }
+                    res.status(201).json({ id: postId });
+                });
+            })
+            .catch(err => {
+                res.status(500).json({ error: true, mess: err.message });
+            });
+    });
+}
+
 
 function update(req, res){
     const id = parseInt(req.params.id);
