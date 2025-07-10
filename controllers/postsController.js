@@ -6,22 +6,26 @@ function index(req, res){
 
     connection.query(sql, (err, results)=>{
         if (err) {
-            return res.status(500).json({error: true, mess: err.message})
+            return res.status(500).json({error: true, mess: err.message});
         };
         console.log(results);
-        res.json(results)
-    })
+        res.json(results);
+    });
 };
 
 function show(req, res){
-    const id = req.params.id;
-    //simulate internal error 500 posts not defined
-    // const post = posts.find(post => post.id === Number(id));
-    const post = postsData.find(post => post.id === Number(id));
-    if(!post){
-        return res.status(404).json({err: "post not found"});
-    }
-    return res.json(post);
+    const id = parseInt(req.params.id);
+
+    const sql = 'SELECT * FROM posts WHERE id = ?';
+    connection.query(sql, [id], (err, results)=>{
+        if (err) {
+            return res.status(500).json({error: true, mess: err.message});
+        };
+        if (results.length === 0) {
+            return res.status(404).json({error: true, mess: 'post not found'});
+        };
+        res.json(results)
+    });
 };
 
 function store(req, res){
