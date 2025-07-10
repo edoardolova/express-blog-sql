@@ -29,17 +29,16 @@ function show(req, res){
 };
 
 function store(req, res){
-    const newId = postsData[postsData.length - 1].id + 1;
-    const newPost = {
-        id: newId,
-        title: req.body.title,
-        content: req.body.content,
-        image: req.body.image,
-        tags: req.body.tags
-    };
-    postsData.push(newPost);
-    console.log(postsData);
-    res.status(201).send(newPost);
+    const {title, content, image} = req.body;
+    const sql = 'INSERT INTO posts (title, content, image) VALUES (?, ?, ?)';
+
+    connection.query(sql, [title, content, image], (err, results) =>{
+        if (err) {
+            return res.status(500).json({error: true, mess: err.message});
+        };
+        console.log(results);
+        res.status(201).json({id: results.insertId});
+    })
 };
 
 function update(req, res){
